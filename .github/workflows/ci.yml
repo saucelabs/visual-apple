@@ -1,0 +1,160 @@
+name: Apple SDK
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-sdk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift59:
+    # //TODO: Temporary hosted baseline. macOS 14 retires November 2, 2026. Migrate to isolated Apple infrastructure.
+    runs-on: macos-14
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate native project and script syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n Scripts/test.sh
+          bash -n Scripts/build-xcframework.sh
+          plutil -lint SauceVisual.xcodeproj/project.pbxproj \
+            Tests/Integration/Source.xcodeproj/project.pbxproj \
+            Tests/Integration/Binary.xcodeproj/project.pbxproj
+      - name: Run native package tests in Debug and Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcrun swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-debug.log
+          xcrun swift test -c release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-release.log
+      - name: Test source-SPM consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for family in iphone ipad tvos macos; do
+            Scripts/test.sh source "$family"
+          done
+      - name: Build and inspect Swift 5.9 XCFramework
+        run: Scripts/build-xcframework.sh
+      - name: Test independent binary consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for family in iphone ipad tvos macos; do
+            Scripts/test.sh binary "$family"
+          done
+      - name: Upload candidate for cross-compiler validation
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: visual-apple-candidate
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          path: |
+            dist/*.xcframework.zip
+            dist/LICENSE
+            dist/build-metadata.txt
+            dist/source-files.sha256
+            dist/checksums.sha256
+      - name: Retain baseline results
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: visual-apple-swift59-results
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            build/**/*.log
+            build/**/results.json
+            build/**/TestResults.xcresult
+
+  modern:
+    needs: swift59
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          name: visual-apple-candidate
+          path: downloaded
+      - name: Verify and unpack the exact baseline binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd downloaded && shasum -a 256 -c checksums.sha256)
+          grep -Fx 'Build mode: swift5.9' downloaded/build-metadata.txt
+          archives=(downloaded/*.xcframework.zip)
+          test "${#archives[@]}" -eq 1
+          test -f "${archives[0]}"
+          mkdir dist
+          ditto -x -k "${archives[0]}" dist
+          # Only modify the test copy. The uploaded archive remains unchanged.
+          # Fresh per-test DerivedData prevents reuse of an imported SDK module.
+          find dist/SauceVisual.xcframework -type f -name '*.swiftmodule' -delete
+      - name: Test the source in Swift 6 language mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcrun swift test -Xswiftc -swift-version -Xswiftc 6 \
+            -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
+            2>&1 | tee build/swift6.log
+      - name: Test both distributions on the newer compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          for mode in source binary; do
+            for family in iphone ipad tvos macos; do
+              Scripts/test.sh "$mode" "$family"
+            done
+          done
+      - name: Record completed cross-compiler acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'Swift 5.9 producer and newer-compiler consumer jobs passed.\n'
+            printf 'Source SPM and direct XCFramework: iPhone, iPad, tvOS, native macOS.\n'
+            printf 'Binary import used textual interfaces; original ZIP is unchanged.\n'
+            printf 'CI run: %s; source revision: %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA"
+            xcodebuild -version
+            xcrun swift --version
+          } > downloaded/CI-VALIDATION.txt
+          (cd downloaded && shasum -a 256 CI-VALIDATION.txt >> checksums.sha256)
+      - name: Upload accepted integration artifact
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: visual-apple-integration
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          path: downloaded/*
+      - name: Retain newer-compiler results
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: visual-apple-modern-results
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            build/**/*.log
+            build/**/results.json
+            build/**/TestResults.xcresult
