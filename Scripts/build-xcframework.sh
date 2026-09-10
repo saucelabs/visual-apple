@@ -3,23 +3,22 @@
 set -euo pipefail
 export LC_ALL=C
 fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
-mode=xcode26.6
-if [[ $# -eq 1 && $1 == --diagnostic ]]; then mode=local
-elif [[ $# -ne 0 ]]; then fail 'Usage: Scripts/build-xcframework.sh [--diagnostic]'; fi
+[[ $# -eq 0 ]] || fail 'Usage: Scripts/build-xcframework.sh'
 [[ $(uname -s) == Darwin ]] || fail 'A Mac with full Xcode is required.'
 root=$(cd "$(dirname "$0")/.." && pwd -P)
 cd "$root"
 xcode=$(xcodebuild -version)
 swift=$(xcrun swift --version)
-if [[ $mode == xcode26.6 ]]; then
-  [[ $(printf '%s\n' "$xcode" | sed -n '1p') == 'Xcode 26.6' ]] || fail 'Select Xcode 26.6, or use --diagnostic for a local-only build.'
-  [[ $swift =~ Swift\ version\ 6\.3([.[:space:]]) ]] || fail 'The Swift 6.3.x compiler bundled with Xcode 26.6 is required.'
-fi
+xcode_version=$(printf '%s\n' "$xcode" | sed -n 's/^Xcode //p')
+xcode_major=${xcode_version%%.*}
+[[ $xcode_major =~ ^[0-9]+$ ]] || fail 'Unrecognized Xcode version.'
+[[ $xcode_major -ge 26 ]] || fail 'Select Xcode 26 or newer.'
 [[ ! -e dist && ! -L dist ]] || fail 'Move or remove the previous dist directory before building; existing outputs are never overwritten.'
 [[ ! -L build ]] || fail 'Refusing a symlinked build directory.'
 mkdir -p build
 work=$(mktemp -d "$root/build/xcframework.XXXXXXXX")
 trap 'status=$?; printf "Archive logs: %s\n" "$work"; exit "$status"' EXIT
+printf '%s\n%s\n' "$xcode" "$swift" | tee "$work/toolchain.log"
 stage="$work/output"
 mkdir -p "$stage" "$work/archives"
 version=$(sed -n 's/^MARKETING_VERSION = \([0-9][0-9.]*\)$/\1/p' Configuration/SDK.xcconfig)
@@ -141,21 +140,10 @@ for index in 0 1 2 3 4; do
   done < "$work/$identifier-paths.log"
 done
 if plist "$info" AvailableLibraries.5.LibraryIdentifier >/dev/null 2>&1; then fail 'Unexpected sixth variant.'; fi
-# Preserve macOS framework symlinks. Hash the exact ZIP that consumers receive.
-archive_name="SauceVisual-$version-$mode.xcframework.zip"
+# Preserve macOS framework symlinks in the distributable ZIP.
+archive_name="SauceVisual-$version.xcframework.zip"
 ditto -c -k --sequesterRsrc --keepParent "$xcframework" "$stage/$archive_name"
 cp LICENSE "$stage/LICENSE"
-find Sources Configuration Distribution SauceVisual.xcodeproj \
-  -type d -name xcuserdata -prune -o -type f ! -name .DS_Store -print | LC_ALL=C sort |
-  while IFS= read -r file; do shasum -a 256 "$file"; done > "$stage/source-files.sha256"
-{
-  printf 'Product: SauceVisual\nVersion: %s\nBuild mode: %s\n' "$version" "$mode"
-  printf '%s\n%s\n' "$xcode" "$swift"
-  printf 'Structural validation: passed\nConsumer validation: not run by this command; use the complete CI result\nSigning: unsigned\n'
-  if [[ $mode == local ]]; then printf 'DIAGNOSTIC ONLY: required Xcode 26.6 compiler checks were bypassed.\n'; fi
-  if [[ -n ${GITHUB_SHA:-} ]]; then printf 'CI source revision: %s\n' "$GITHUB_SHA"; fi
-} > "$stage/build-metadata.txt"
-(cd "$stage" && shasum -a 256 "$archive_name" LICENSE build-metadata.txt source-files.sha256 > checksums.sha256)
 [[ ! -e $root/dist && ! -L $root/dist ]] || fail 'dist appeared during the build; refusing to overwrite it.'
 mv "$stage" "$root/dist"
 printf 'Created dist/%s. Run both consumer test distributions before using this artifact.\n' "$archive_name"

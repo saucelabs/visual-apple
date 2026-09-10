@@ -33,13 +33,19 @@ jobs:
           plutil -lint SauceVisual.xcodeproj/project.pbxproj \
             Tests/Integration/Source.xcodeproj/project.pbxproj \
             Tests/Integration/Binary.xcodeproj/project.pbxproj
-      - name: Run native package tests in Debug and Release
+      - name: Run native package tests in Debug, Release, and Swift 6 language mode
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
-          xcrun swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-debug.log
-          xcrun swift test -c release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-release.log
+          xcrun swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
+            2>&1 | tee build/swift-debug.log
+          xcrun swift test -c release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
+            2>&1 | tee build/swift-release.log
+          xcrun swift test -Xswiftc -swift-version -Xswiftc 6 \
+            -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
+            2>&1 | tee build/swift6.log
       - name: Test source-SPM consumers
         shell: bash
         run: |
@@ -47,7 +53,7 @@ jobs:
           for family in iphone ipad tvos macos; do
             Scripts/test.sh source "$family"
           done
-      - name: Build and inspect Xcode 26.6 XCFramework
+      - name: Build and inspect the XCFramework
         run: Scripts/build-xcframework.sh
       - name: Upload candidate for independent binary validation
         uses: actions/upload-artifact@v4.6.2
@@ -59,9 +65,6 @@ jobs:
           path: |
             dist/*.xcframework.zip
             dist/LICENSE
-            dist/build-metadata.txt
-            dist/source-files.sha256
-            dist/checksums.sha256
       - name: Retain build and source-test results
         if: always()
         uses: actions/upload-artifact@v4.6.2
@@ -86,28 +89,21 @@ jobs:
         with:
           name: visual-apple-candidate
           path: downloaded
-      - name: Verify and unpack the exact candidate binary
+      - name: Unpack the candidate for binary-only consumers
         shell: bash
         run: |
           set -euo pipefail
-          (cd downloaded && shasum -a 256 -c checksums.sha256)
-          grep -Fx 'Build mode: xcode26.6' downloaded/build-metadata.txt
           archives=(downloaded/*.xcframework.zip)
           test "${#archives[@]}" -eq 1
           test -f "${archives[0]}"
+          test -s downloaded/LICENSE
           mkdir dist
           ditto -x -k "${archives[0]}" dist
-          # Only modify the test copy. The uploaded archive remains unchanged.
-          # Fresh per-test DerivedData prevents reuse of an imported SDK module.
+          test -d dist/SauceVisual.xcframework
+          # Modify only the extracted test copy; retain the original ZIP for upload.
+          # Fresh DerivedData in each test run prevents cached SDK module reuse.
+          # This checks textual-interface import, not cross-compiler compatibility.
           find dist/SauceVisual.xcframework -type f -name '*.swiftmodule' -delete
-      - name: Test the source in Swift 6 language mode
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          xcrun swift test -Xswiftc -swift-version -Xswiftc 6 \
-            -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
-            2>&1 | tee build/swift6.log
       - name: Test independent binary consumers
         shell: bash
         run: |
@@ -115,20 +111,6 @@ jobs:
           for family in iphone ipad tvos macos; do
             Scripts/test.sh binary "$family"
           done
-      - name: Record completed integration validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            printf 'Xcode 26.6 source, package, and independent binary consumer jobs passed.\n'
-            printf 'Package tests passed in Swift 5 and Swift 6 language modes.\n'
-            printf 'Source SPM and direct XCFramework: iPhone, iPad, tvOS, native macOS.\n'
-            printf 'Binary import used textual interfaces; original ZIP is unchanged.\n'
-            printf 'CI run: %s; source revision: %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA"
-            xcodebuild -version
-            xcrun swift --version
-          } > downloaded/CI-VALIDATION.txt
-          (cd downloaded && shasum -a 256 CI-VALIDATION.txt >> checksums.sha256)
       - name: Upload accepted integration artifact
         uses: actions/upload-artifact@v4.6.2
         with:
@@ -136,7 +118,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
-          path: downloaded/*
+          path: |
+            downloaded/*.xcframework.zip
+            downloaded/LICENSE
       - name: Retain binary-validation results
         if: always()
         uses: actions/upload-artifact@v4.6.2
