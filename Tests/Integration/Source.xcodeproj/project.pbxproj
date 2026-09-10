@@ -749,6 +749,8 @@
 			"name" = "Debug";
 			"buildSettings" = {
 				"SDKROOT" = "macosx";
+				/* Test host/bundle floor for modern XCTest; SDK remains macOS 12. */
+				"MACOSX_DEPLOYMENT_TARGET" = "14.0";
 				"SUPPORTED_PLATFORMS" = "macosx";
 				"PRODUCT_NAME" = "SmokeHost-macOS";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.saucelabs.visual.apple.source.smokehost-macos";
@@ -773,6 +775,8 @@
 			"name" = "Release";
 			"buildSettings" = {
 				"SDKROOT" = "macosx";
+				/* Test host/bundle floor for modern XCTest; SDK remains macOS 12. */
+				"MACOSX_DEPLOYMENT_TARGET" = "14.0";
 				"SUPPORTED_PLATFORMS" = "macosx";
 				"PRODUCT_NAME" = "SmokeHost-macOS";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.saucelabs.visual.apple.source.smokehost-macos";
@@ -878,6 +882,8 @@
 			"name" = "Debug";
 			"buildSettings" = {
 				"SDKROOT" = "macosx";
+				/* Test host/bundle floor for modern XCTest; SDK remains macOS 12. */
+				"MACOSX_DEPLOYMENT_TARGET" = "14.0";
 				"SUPPORTED_PLATFORMS" = "macosx";
 				"PRODUCT_NAME" = "ConsumerTests-macOS";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.saucelabs.visual.apple.source.consumertests-macos";
@@ -904,6 +910,8 @@
 			"name" = "Release";
 			"buildSettings" = {
 				"SDKROOT" = "macosx";
+				/* Test host/bundle floor for modern XCTest; SDK remains macOS 12. */
+				"MACOSX_DEPLOYMENT_TARGET" = "14.0";
 				"SUPPORTED_PLATFORMS" = "macosx";
 				"PRODUCT_NAME" = "ConsumerTests-macOS";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.saucelabs.visual.apple.source.consumertests-macos";
