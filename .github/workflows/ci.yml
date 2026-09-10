@@ -56,7 +56,7 @@ jobs:
       - name: Build and inspect the XCFramework
         run: Scripts/build-xcframework.sh
       - name: Upload candidate for independent binary validation
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: visual-apple-candidate
           if-no-files-found: error
@@ -67,7 +67,7 @@ jobs:
             dist/LICENSE
       - name: Retain build and source-test results
         if: always()
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: visual-apple-build-results
           if-no-files-found: warn
@@ -112,7 +112,7 @@ jobs:
             Scripts/test.sh binary "$family"
           done
       - name: Upload accepted integration artifact
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: visual-apple-integration
           if-no-files-found: error
@@ -123,7 +123,7 @@ jobs:
             downloaded/LICENSE
       - name: Retain binary-validation results
         if: always()
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: visual-apple-binary-results
           if-no-files-found: warn
