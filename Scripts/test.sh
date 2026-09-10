@@ -20,6 +20,10 @@ mkdir -p build
 run=$(mktemp -d "$root/build/test-$1-$2.XXXXXXXX")
 trap 'status=$?; printf "Results and logs: %s\n" "$run"; exit "$status"' EXIT
 xcodebuild -version > "$run/toolchain.log"
+xcode_version=$(sed -n 's/^Xcode //p' "$run/toolchain.log")
+xcode_major=${xcode_version%%.*}
+[[ $xcode_major =~ ^[0-9]+$ ]] || fail 'Unrecognized Xcode version.'
+[[ $xcode_major -ge 26 ]] || fail 'Select Xcode 26 or newer.'
 xcrun swift --version >> "$run/toolchain.log"
 cat "$run/toolchain.log"
 if [[ $1 == binary ]]; then
@@ -75,14 +79,33 @@ fi
 printf 'Distribution: %s; destination: %s\n' "$1" "$destination" | tee "$run/destination.log"
 xcodebuild "${args[@]}" test -configuration Debug -destination "$destination" \
   -destination-timeout 180 -parallel-testing-enabled NO \
+  -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \
+  -maximum-test-execution-time-allowance 120 \
   -resultBundlePath "$run/TestResults.xcresult" 2>&1 | tee "$run/tests.log"
-# Inspect the completed result bundle using Xcode's test summary API.
+# Read the modern test summary. Missing or malformed metrics fail the run.
+plist() { plutil -extract "$2" raw -o - "$1"; }
 xcrun xcresulttool get test-results summary --path "$run/TestResults.xcresult" --compact > "$run/results.json"
-result=$(plutil -extract result raw -o - "$run/results.json")
-tests=$(plutil -extract totalTestCount raw -o - "$run/results.json")
-passed=$(plutil -extract passedTests raw -o - "$run/results.json")
-failed=$(plutil -extract failedTests raw -o - "$run/results.json")
-skipped=$(plutil -extract skippedTests raw -o - "$run/results.json")
+result=$(plist "$run/results.json" result)
+tests=$(plist "$run/results.json" totalTestCount)
+passed=$(plist "$run/results.json" passedTests)
+failed=$(plist "$run/results.json" failedTests)
+skipped=$(plist "$run/results.json" skippedTests)
 [[ $tests =~ ^[0-9]+$ && $passed =~ ^[0-9]+$ && $failed =~ ^[0-9]+$ && $skipped =~ ^[0-9]+$ ]] || fail 'Unrecognized test-result metrics.'
-[[ $result == Passed && $tests -ge 34 && $passed -eq $tests && $failed -eq 0 && $skipped -eq 0 ]] || fail "Expected at least 34 passing tests without failures/skips; got $result: $passed/$tests passed, $failed failed, $skipped skipped"
-printf 'Passed: %s tests; no failures or skips.\n' "$tests"
+[[ $result == Passed && $tests -ge 35 && $passed -eq $tests && $failed -eq 0 && $skipped -eq 0 ]] || fail "Expected at least 35 passing tests without failures/skips; got $result: $passed/$tests passed, $failed failed, $skipped skipped"
+# Retain named passing cases and require all four suites.
+# An aggregate count alone must not let extra actor tests hide removal of the actual Objective-C fixture.
+sed -n "s/^Test Case '\(.*\)' passed (.*/\1/p" "$run/tests.log" > "$run/passed-tests.log"
+awk '!/^-\[[[:alpha:]_][[:alnum:]_.]* test[[:alnum:]_]+\]$/ {exit 1}' "$run/passed-tests.log" || fail 'Malformed named test record.'
+recorded=$(wc -l < "$run/passed-tests.log" | tr -d '[:space:]')
+unique=$(sort -u "$run/passed-tests.log" | wc -l | tr -d '[:space:]')
+[[ $recorded -eq $tests && $unique -eq $tests ]] || fail 'Named passing cases do not match the result count.'
+while IFS='|' read -r suite minimum; do
+  count=$(awk -v suite="$suite" '{name=$1; sub(/^-\[/, "", name); sub(/^.*\./, "", name); if (name==suite) count++} END {print count+0}' "$run/passed-tests.log")
+  [[ $count -ge $minimum ]] || fail "Missing required coverage in $suite: $count/$minimum"
+done <<'SUITES'
+VisualSessionTests|20
+ObjectiveCBridgeTests|5
+ObjectiveCConsumerTests|9
+ExampleTests|1
+SUITES
+printf 'Passed: %s tests across all four suites; no failures or skips.\n' "$tests"

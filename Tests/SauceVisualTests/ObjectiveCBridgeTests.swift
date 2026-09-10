@@ -91,5 +91,55 @@ final class ObjectiveCBridgeTests: XCTestCase, @unchecked Sendable {
         XCTAssertTrue(first.isMock && second.isMock)
     }
 
+    func testFinishCancellationRacePreservesSessionState() async throws {
+        let client = try VisualClient(sessionName: "Finish cancellation")
+        let finished: Bool = await withCheckedContinuation { continuation in
+            let operation = client.finish { summary, error in
+                XCTAssertTrue(Thread.isMainThread)
+                if let summary {
+                    XCTAssertNil(error)
+                    XCTAssertEqual(summary.checkpointCount, 0)
+                    continuation.resume(returning: true)
+                } else {
+                    XCTAssertEqual(error?.domain, VisualClient.errorDomain)
+                    XCTAssertEqual(error?.code, VisualError.cancelled.rawValue)
+                    continuation.resume(returning: false)
+                }
+            }
+            // Either commit or cancellation may win. Neither may undo a commit.
+            operation.cancel()
+            operation.cancel()
+        }
+        let admitted: Bool = await withCheckedContinuation { continuation in
+            client.recordCheckpoint(named: "After finish attempt") { receipt, error in
+                XCTAssertTrue(Thread.isMainThread)
+                if let receipt {
+                    XCTAssertNil(error)
+                    XCTAssertFalse(finished)
+                    XCTAssertEqual(receipt.sequence, 1)
+                    continuation.resume(returning: true)
+                } else {
+                    XCTAssertTrue(finished)
+                    XCTAssertEqual(error?.domain, VisualClient.errorDomain)
+                    XCTAssertEqual(error?.code, VisualError.sessionFinished.rawValue)
+                    continuation.resume(returning: false)
+                }
+            }
+        }
+        XCTAssertEqual(admitted, !finished)
+        let summary: VisualSessionSummary = try await withCheckedThrowingContinuation { continuation in
+            client.finish { summary, error in
+                XCTAssertTrue(Thread.isMainThread)
+                if let summary {
+                    XCTAssertNil(error)
+                    continuation.resume(returning: summary)
+                } else {
+                    continuation.resume(throwing: error ?? VisualError.cancelled as NSError)
+                }
+            }
+        }
+        XCTAssertEqual(summary.checkpointCount, admitted ? 1 : 0)
+        XCTAssertTrue(summary.isMock)
+    }
 }
 #endif
