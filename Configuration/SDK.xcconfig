@@ -1,5 +1,4 @@
 // Shared by the framework and hosted consumer projects.
-// Swift 5 language mode is not proof of a Swift 5.9 compiler; CI tests both.
 SWIFT_VERSION = 5.0
 SWIFT_STRICT_CONCURRENCY = complete
 SWIFT_TREAT_WARNINGS_AS_ERRORS = YES

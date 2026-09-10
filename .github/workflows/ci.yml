@@ -9,17 +9,17 @@ on:
 permissions:
   contents: read
 
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
 concurrency:
   group: apple-sdk-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  swift59:
-    # //TODO: Temporary hosted baseline. macOS 14 retires November 2, 2026. Migrate to isolated Apple infrastructure.
-    runs-on: macos-14
+  build:
+    runs-on: macos-26
     timeout-minutes: 120
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -47,16 +47,9 @@ jobs:
           for family in iphone ipad tvos macos; do
             Scripts/test.sh source "$family"
           done
-      - name: Build and inspect Swift 5.9 XCFramework
+      - name: Build and inspect Xcode 26.6 XCFramework
         run: Scripts/build-xcframework.sh
-      - name: Test independent binary consumers
-        shell: bash
-        run: |
-          set -euo pipefail
-          for family in iphone ipad tvos macos; do
-            Scripts/test.sh binary "$family"
-          done
-      - name: Upload candidate for cross-compiler validation
+      - name: Upload candidate for independent binary validation
         uses: actions/upload-artifact@v4.6.2
         with:
           name: visual-apple-candidate
@@ -69,11 +62,11 @@ jobs:
             dist/build-metadata.txt
             dist/source-files.sha256
             dist/checksums.sha256
-      - name: Retain baseline results
+      - name: Retain build and source-test results
         if: always()
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: visual-apple-swift59-results
+          name: visual-apple-build-results
           if-no-files-found: warn
           retention-days: 7
           path: |
@@ -81,12 +74,10 @@ jobs:
             build/**/results.json
             build/**/TestResults.xcresult
 
-  modern:
-    needs: swift59
-    runs-on: macos-15
+  validate-binary:
+    needs: build
+    runs-on: macos-26
     timeout-minutes: 120
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -95,12 +86,12 @@ jobs:
         with:
           name: visual-apple-candidate
           path: downloaded
-      - name: Verify and unpack the exact baseline binary
+      - name: Verify and unpack the exact candidate binary
         shell: bash
         run: |
           set -euo pipefail
           (cd downloaded && shasum -a 256 -c checksums.sha256)
-          grep -Fx 'Build mode: swift5.9' downloaded/build-metadata.txt
+          grep -Fx 'Build mode: xcode26.6' downloaded/build-metadata.txt
           archives=(downloaded/*.xcframework.zip)
           test "${#archives[@]}" -eq 1
           test -f "${archives[0]}"
@@ -117,21 +108,20 @@ jobs:
           xcrun swift test -Xswiftc -swift-version -Xswiftc 6 \
             -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
             2>&1 | tee build/swift6.log
-      - name: Test both distributions on the newer compiler
+      - name: Test independent binary consumers
         shell: bash
         run: |
           set -euo pipefail
-          for mode in source binary; do
-            for family in iphone ipad tvos macos; do
-              Scripts/test.sh "$mode" "$family"
-            done
+          for family in iphone ipad tvos macos; do
+            Scripts/test.sh binary "$family"
           done
-      - name: Record completed cross-compiler acceptance
+      - name: Record completed integration validation
         shell: bash
         run: |
           set -euo pipefail
           {
-            printf 'Swift 5.9 producer and newer-compiler consumer jobs passed.\n'
+            printf 'Xcode 26.6 source, package, and independent binary consumer jobs passed.\n'
+            printf 'Package tests passed in Swift 5 and Swift 6 language modes.\n'
             printf 'Source SPM and direct XCFramework: iPhone, iPad, tvOS, native macOS.\n'
             printf 'Binary import used textual interfaces; original ZIP is unchanged.\n'
             printf 'CI run: %s; source revision: %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA"
@@ -147,11 +137,11 @@ jobs:
           retention-days: 14
           compression-level: 0
           path: downloaded/*
-      - name: Retain newer-compiler results
+      - name: Retain binary-validation results
         if: always()
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: visual-apple-modern-results
+          name: visual-apple-binary-results
           if-no-files-found: warn
           retention-days: 7
           path: |

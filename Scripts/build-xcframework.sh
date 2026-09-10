@@ -3,7 +3,7 @@
 set -euo pipefail
 export LC_ALL=C
 fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
-mode=swift5.9
+mode=xcode26.6
 if [[ $# -eq 1 && $1 == --diagnostic ]]; then mode=local
 elif [[ $# -ne 0 ]]; then fail 'Usage: Scripts/build-xcframework.sh [--diagnostic]'; fi
 [[ $(uname -s) == Darwin ]] || fail 'A Mac with full Xcode is required.'
@@ -11,9 +11,9 @@ root=$(cd "$(dirname "$0")/.." && pwd -P)
 cd "$root"
 xcode=$(xcodebuild -version)
 swift=$(xcrun swift --version)
-if [[ $mode == swift5.9 ]]; then
-  [[ $(printf '%s\n' "$xcode" | sed -n '1p') == 'Xcode 15.2' ]] || fail 'Select Xcode 15.2, or use --diagnostic for a local-only build.'
-  [[ $swift =~ Swift\ version\ 5\.9([.[:space:]]) ]] || fail 'The actual Swift 5.9.x compiler is required.'
+if [[ $mode == xcode26.6 ]]; then
+  [[ $(printf '%s\n' "$xcode" | sed -n '1p') == 'Xcode 26.6' ]] || fail 'Select Xcode 26.6, or use --diagnostic for a local-only build.'
+  [[ $swift =~ Swift\ version\ 6\.3([.[:space:]]) ]] || fail 'The Swift 6.3.x compiler bundled with Xcode 26.6 is required.'
 fi
 [[ ! -e dist && ! -L dist ]] || fail 'Move or remove the previous dist directory before building; existing outputs are never overwritten.'
 [[ ! -L build ]] || fail 'Refusing a symlinked build directory.'
@@ -152,7 +152,7 @@ find Sources Configuration Distribution SauceVisual.xcodeproj \
   printf 'Product: SauceVisual\nVersion: %s\nBuild mode: %s\n' "$version" "$mode"
   printf '%s\n%s\n' "$xcode" "$swift"
   printf 'Structural validation: passed\nConsumer validation: not run by this command; use the complete CI result\nSigning: unsigned\n'
-  if [[ $mode == local ]]; then printf 'DIAGNOSTIC ONLY: not evidence of Swift 5.9 compiler compatibility.\n'; fi
+  if [[ $mode == local ]]; then printf 'DIAGNOSTIC ONLY: required Xcode 26.6 compiler checks were bypassed.\n'; fi
   if [[ -n ${GITHUB_SHA:-} ]]; then printf 'CI source revision: %s\n' "$GITHUB_SHA"; fi
 } > "$stage/build-metadata.txt"
 (cd "$stage" && shasum -a 256 "$archive_name" LICENSE build-metadata.txt source-files.sha256 > checksums.sha256)
