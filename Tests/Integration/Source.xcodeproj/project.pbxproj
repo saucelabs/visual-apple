@@ -89,6 +89,7 @@
 			);
 			"packageReferences" = (
 				AD0B563379E27AA27645948B,
+				ADAB10217AE9550B7A13D75D,
 			);
 		};
 		AD0B563379E27AA27645948B = {
@@ -284,6 +285,7 @@
 				32F0D8E11BF5DCA7E13AD788,
 				CC64B6433026F917A0D14FE9,
 				EB1834377629203C179E868F,
+				9DB1CEAAE2E072DFE15DEC3A,
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -292,6 +294,8 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 				A50856E5051E607DA1DCEDDB,
+				7057106F308441ADA484AC44,
+				0C7B58255AD212C3EFA0EECA,
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -376,6 +380,8 @@
 			"productType" = "com.apple.product-type.bundle.unit-test";
 			"packageProductDependencies" = (
 				A0C2B24EEF97E037DA1F9E37,
+				E0D7FE54485128449C16DD83,
+				8D30914551FD1BA6420E4204,
 			);
 		};
 		10DF035CA7C5C6D8D2E1AD81 = {
@@ -574,6 +580,7 @@
 				1FF094180C0E6152E2100362,
 				1B37065E90AF48C937D279A3,
 				319E8F69759E7915D7E1776A,
+				430A77AB49A2CC8D8BAA43C6,
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -582,6 +589,8 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 				A9E08ACBCFE5D3387B4D9F14,
+				C08904602A22D35F06DE76AA,
+				4FE1F41674EC55E567CBECA1,
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -666,6 +675,8 @@
 			"productType" = "com.apple.product-type.bundle.unit-test";
 			"packageProductDependencies" = (
 				9B899CE3FC9AA6DA7A36E0AE,
+				ADBAC08F577A4A77F7DDE2BB,
+				1F54B04BEEF45095007CB6AF,
 			);
 		};
 		3B2540B78ADB29ACDC768227 = {
@@ -866,6 +877,7 @@
 				D7F462B9C19CBEB477B63C8F,
 				B47CD31F86F59B17FE052789,
 				55B23D08C34EA9CCB22B3160,
+				7BBCA5EED10F16D7CDBD8D59,
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -874,6 +886,8 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 				2A6BEF59E35792DB4D831009,
+				726924AED0E1B37BC4A75C1E,
+				2485083071EDB969A3D6BB9E,
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -960,6 +974,8 @@
 			"productType" = "com.apple.product-type.bundle.unit-test";
 			"packageProductDependencies" = (
 				3AAD6A4E73288B2251FE0C4F,
+				FE106A39F35BC11493BEFD0D,
+				0141B8C2FCB8822CE1EF8880,
 			);
 		};
 		3872C35E5A5C0629ADE126A4 = {
@@ -1034,6 +1050,7 @@
 			"children" = (
 				C1A19EB1F358E62B0C0186DE,
 				37FBAFD385F324197074C5CA,
+				9B2C93426F02684E2DC38151,
 			);
 		};
 		AEE393CDE4B3FD9172EF5E0C = {
@@ -1052,6 +1069,86 @@
 			"children" = (
 				907D30109BE37F3EC75931FE,
 			);
+		};
+		ADAB10217AE9550B7A13D75D = {
+			"isa" = "XCRemoteSwiftPackageReference";
+			"repositoryURL" = "https://github.com/apollographql/apollo-ios.git";
+			"requirement" = {
+				"kind" = "exactVersion";
+				"version" = "2.4.0";
+			};
+		};
+		9B2C93426F02684E2DC38151 = {
+			"isa" = "PBXFileReference";
+			"path" = "GraphQLDependencyTests.swift";
+			"sourceTree" = "<group>";
+			"lastKnownFileType" = "sourcecode.swift";
+		};
+		9DB1CEAAE2E072DFE15DEC3A = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = 9B2C93426F02684E2DC38151;
+		};
+		E0D7FE54485128449C16DD83 = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = ADAB10217AE9550B7A13D75D;
+			"productName" = "Apollo";
+		};
+		7057106F308441ADA484AC44 = {
+			"isa" = "PBXBuildFile";
+			"productRef" = E0D7FE54485128449C16DD83;
+		};
+		8D30914551FD1BA6420E4204 = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = ADAB10217AE9550B7A13D75D;
+			"productName" = "ApolloAPI";
+		};
+		0C7B58255AD212C3EFA0EECA = {
+			"isa" = "PBXBuildFile";
+			"productRef" = 8D30914551FD1BA6420E4204;
+		};
+		430A77AB49A2CC8D8BAA43C6 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = 9B2C93426F02684E2DC38151;
+		};
+		ADBAC08F577A4A77F7DDE2BB = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = ADAB10217AE9550B7A13D75D;
+			"productName" = "Apollo";
+		};
+		C08904602A22D35F06DE76AA = {
+			"isa" = "PBXBuildFile";
+			"productRef" = ADBAC08F577A4A77F7DDE2BB;
+		};
+		1F54B04BEEF45095007CB6AF = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = ADAB10217AE9550B7A13D75D;
+			"productName" = "ApolloAPI";
+		};
+		4FE1F41674EC55E567CBECA1 = {
+			"isa" = "PBXBuildFile";
+			"productRef" = 1F54B04BEEF45095007CB6AF;
+		};
+		7BBCA5EED10F16D7CDBD8D59 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = 9B2C93426F02684E2DC38151;
+		};
+		FE106A39F35BC11493BEFD0D = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = ADAB10217AE9550B7A13D75D;
+			"productName" = "Apollo";
+		};
+		726924AED0E1B37BC4A75C1E = {
+			"isa" = "PBXBuildFile";
+			"productRef" = FE106A39F35BC11493BEFD0D;
+		};
+		0141B8C2FCB8822CE1EF8880 = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = ADAB10217AE9550B7A13D75D;
+			"productName" = "ApolloAPI";
+		};
+		2485083071EDB969A3D6BB9E = {
+			"isa" = "PBXBuildFile";
+			"productRef" = 0141B8C2FCB8822CE1EF8880;
 		};
 	};
 	"rootObject" = 23F90570BF107FB6F67C317E;
