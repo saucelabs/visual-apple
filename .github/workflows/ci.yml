@@ -58,7 +58,7 @@ jobs:
 
       - name: Retain package-test logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: visual-apple-package-results
           if-no-files-found: warn
@@ -110,7 +110,7 @@ jobs:
       # DerivedData is never uploaded: xcodebuild stores the environment, including the access key, in it.
       - name: Retain source-test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: visual-apple-source-results-${{ matrix.family }}
           if-no-files-found: warn
@@ -135,7 +135,7 @@ jobs:
 
       # Artifact paths are relative to the repository root, not the working directory.
       - name: Upload candidate for independent binary validation
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: visual-apple-candidate
           if-no-files-found: error
@@ -147,7 +147,7 @@ jobs:
 
       - name: Retain XCFramework build logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: visual-apple-xcframework-results
           if-no-files-found: warn
@@ -221,7 +221,7 @@ jobs:
 
       - name: Retain binary-validation results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: visual-apple-binary-results-${{ matrix.family }}
           if-no-files-found: warn
@@ -244,7 +244,7 @@ jobs:
           path: candidate
 
       - name: Upload accepted integration artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: visual-apple-integration
           if-no-files-found: error
