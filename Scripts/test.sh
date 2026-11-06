@@ -143,16 +143,42 @@ build_args=(
   -project "$root/Tests/Integration/$project.xcodeproj"
   -scheme "Consumer-$scheme"
   -derivedDataPath "$run/DerivedData"
-  CODE_SIGNING_ALLOWED=NO
 )
+if [[ $family == macos ]]; then
+  # macOS kills unsigned UI test runners. Ad-hoc signing needs no Apple account.
+  build_args+=(CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=)
+else
+  build_args+=(CODE_SIGNING_ALLOWED=NO)
+fi
+# Tests on a simulator don't see this shell's variables, so pass each SAUCE_* on as TEST_RUNNER_SAUCE_*,
+# which xcodebuild hands to the tests without the prefix.
+for name in SAUCE_USERNAME SAUCE_ACCESS_KEY SAUCE_REGION SAUCE_VISUAL_BUILD_NAME SAUCE_VISUAL_PROJECT \
+    SAUCE_VISUAL_BRANCH SAUCE_VISUAL_DEFAULT_BRANCH SAUCE_VISUAL_CUSTOM_ID SAUCE_VISUAL_BUILD_ID SAUCE_VISUAL_TAGS; do
+  runner_name="TEST_RUNNER_$name"
+  if [[ -z ${!runner_name:-} && -n ${!name:-} ]]; then
+    export "$runner_name=${!name}"
+  fi
+done
 if [[ $family == macos ]]; then
   destination="platform=macOS,arch=$(uname -m)"
 else
   udid=$(select_simulator "$run" "$platform" "$device_prefix" "${build_args[@]}")
   destination="platform=$platform,id=$udid"
+  if [[ $platform == 'iOS Simulator' ]]; then
+    # Pin the status bar, so its clock and battery don't differ between snapshots. tvOS has no status bar.
+    xcrun simctl bootstatus "$udid" -b > "$run/status-bar.log" 2>&1 || fail 'Could not boot the simulator.'
+    xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 \
+      --wifiBars 3 >> "$run/status-bar.log" 2>&1 || fail 'Could not pin the simulator status bar.'
+  fi
 fi
 
-# pipefail preserves xcodebuild failures.
+# SKIP_SAFARI_TESTS=1 leaves out the Safari test on CI, where Safari on a fresh simulator is slow and flaky.
+test_args=()
+if [[ ${SKIP_SAFARI_TESTS:-} == 1 && ( $family == iphone || $family == ipad ) ]]; then
+  test_args+=(-skip-testing:ConsumerTests-iOS/SauceDemoTests)
+fi
+
+# pipefail keeps xcodebuild's exit status through tee.
 printf 'Distribution: %s; destination: %s\n' "$distribution" "$destination" | tee "$run/destination.log"
 xcodebuild "${build_args[@]}" test \
   -configuration Debug \
@@ -162,7 +188,8 @@ xcodebuild "${build_args[@]}" test \
   -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 120 \
   -maximum-test-execution-time-allowance 120 \
-  -resultBundlePath "$run/TestResults.xcresult" 2>&1 | tee "$run/tests.log"
+  -resultBundlePath "$run/TestResults.xcresult" \
+  ${test_args[@]+"${test_args[@]}"} 2>&1 | tee "$run/tests.log"
 
 # Validate the structured result.
 xcrun xcresulttool get test-results summary \

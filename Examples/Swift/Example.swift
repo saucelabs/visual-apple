@@ -1,9 +1,14 @@
 import SauceVisual
 
-/// Compiled and executed by the consumer integration tests on every platform.
-func runSwiftExample() async throws -> SessionSummary {
-    let session = try VisualSession(sessionName: "Checkout flow")
-    _ = try await session.recordCheckpoint(named: "Cart")
-    _ = try await session.recordCheckpoint(named: "Confirmation")
-    return try await session.finish()
+/// Takes one snapshot. Credentials come from `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY`,
+/// and the SDK creates and finishes the build for you.
+func runSwiftExample(
+    _ options: VisualBuildOptions = VisualBuildOptions(
+        name: "Checkout flow", project: "Example app", branch: "feature-checkout", defaultBranch: "main"
+    )
+) async throws -> VisualSnapshot {
+    let visual = try VisualClient(options: options)
+    let snapshot = try await visual.sauceVisualCheck("Home screen")
+    print("Sauce Visual build: \(snapshot.buildId)")
+    return snapshot
 }

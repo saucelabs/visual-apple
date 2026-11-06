@@ -1,15 +1,23 @@
 #if canImport(ObjectiveC)
-/// Objective-C error codes in the `com.saucelabs.visual.apple` NSError domain.
-///
-/// Keep this separate from `VisualError`: an @objc enum conforming to Error receives compiler-generated NSError bridging that overrides CustomNSError's domain on Apple platforms.
-/// The Swift error supplies the domain and message: this enum supplies the stable constants in the generated Objective-C header.
+/// Error codes for Objective-C, in the `com.saucelabs.visual.apple` domain. Kept apart from `VisualError`,
+/// because an `@objc` error enum would get the wrong NSError domain.
 @objc(SLVErrorCode)
 public enum VisualErrorCode: Int, Sendable {
-    case invalidSessionName = 1
-    case invalidCheckpointName = 2
-    case invalidCheckpointLimit = 3
-    case sessionFinished = 4
-    case checkpointLimitReached = 5
-    case cancelled = 6
+    case cancelled = 1
+    case invalidCredentials = 2
+    case unknownRegion = 3
+    case invalidBuildId = 4
+    case buildAlreadyCompleted = 5
+    case networkFailure = 6
+    case apiError = 7
+    case conflictingConfiguration = 8
+    case buildNotFound = 9
+    case invalidSnapshotName = 10
+    case elementNotFound = 11
+    case invalidCheckOptions = 12
+    case clipElementOffScreen = 13
+    case screenshotFailed = 14
+    case fullPageNotSupported = 15
+    case invalidFinishDelay = 16
 }
 #endif
