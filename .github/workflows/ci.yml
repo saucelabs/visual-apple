@@ -63,7 +63,7 @@ jobs:
           name: visual-apple-package-results
           if-no-files-found: warn
           retention-days: 7
-          path: visual-apple/build/*.log
+          path: build/*.log
 
   source-tests:
     name: source-tests (${{ matrix.family }})
@@ -116,10 +116,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
           path: |
-            visual-apple/build/**/*.log
-            visual-apple/build/**/results.json
-            visual-apple/build/**/TestResults.xcresult
-            !visual-apple/build/**/DerivedData/**
+            build/**/*.log
+            build/**/results.json
+            build/**/TestResults.xcresult
+            !build/**/DerivedData/**
 
   xcframework:
     needs: package-tests
@@ -142,8 +142,8 @@ jobs:
           retention-days: 1
           compression-level: 0
           path: |
-            visual-apple/dist/*.xcframework.zip
-            visual-apple/dist/LICENSE
+            dist/*.xcframework.zip
+            dist/LICENSE
 
       - name: Retain XCFramework build logs
         if: always()
@@ -153,8 +153,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
           path: |
-            visual-apple/build/**/*.log
-            !visual-apple/build/**/DerivedData*/**
+            build/**/*.log
+            !build/**/DerivedData*/**
 
   validate-binary:
     name: validate-binary (${{ matrix.family }})
@@ -173,7 +173,7 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: visual-apple-candidate
-          path: visual-apple/downloaded
+          path: downloaded
 
       - name: Unpack the candidate for binary-only consumers
         shell: bash
@@ -227,10 +227,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
           path: |
-            visual-apple/build/**/*.log
-            visual-apple/build/**/results.json
-            visual-apple/build/**/TestResults.xcresult
-            !visual-apple/build/**/DerivedData/**
+            build/**/*.log
+            build/**/results.json
+            build/**/TestResults.xcresult
+            !build/**/DerivedData/**
 
   # Publishes the candidate only once every check has passed: package, all source families, all binary families.
   accept:
