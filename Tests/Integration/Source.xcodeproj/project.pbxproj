@@ -104,7 +104,7 @@
 		};
 		AD0B563379E27AA27645948B = {
 			"isa" = "XCLocalSwiftPackageReference";
-			"relativePath" = "../../..";
+			"relativePath" = "../..";
 		};
 		2245C1300354BF39AF141C0E = {
 			"isa" = "PBXFileReference";
