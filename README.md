@@ -12,7 +12,20 @@ Add SauceVisual to your **UI test target only**, never to the app. XCUITest runs
 
 ### Swift Package Manager
 
-Add this checkout as a local package in Xcode, and add the `SauceVisual` product to the UI test target.
+In Xcode, choose **File → Add Package Dependencies…**, enter `https://github.com/saucelabs/visual-apple`, and add the `SauceVisual` product to the UI test target.
+
+In a `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/saucelabs/visual-apple", from: "0.1.0")
+],
+targets: [
+    .testTarget(name: "MyAppUITests", dependencies: [
+        .product(name: "SauceVisual", package: "visual-apple")
+    ])
+]
+```
 
 `SauceVisual` is a dynamic framework. Adding the product links it into the UI test target, but Xcode copies it into the test bundle only if the target has a Copy Files phase for it. Check that the UI test target has one, or add it:
 
@@ -26,7 +39,7 @@ See the [source consumer project](Tests/Integration/Source.xcodeproj) for an exa
 
 ### XCFramework
 
-Add `SauceVisual.xcframework` to the UI test target and choose **Embed & Sign**.
+Build `SauceVisual.xcframework` with `Scripts/build-xcframework.sh` (see [Development](#development)), add it to the UI test target, and choose **Embed & Sign**.
 The archive includes dSYMs, the consuming test target signs the framework. See the [binary consumer project](Tests/Integration/Binary.xcodeproj) for an example.
 
 On macOS, UI tests need a signed runner (ad-hoc signing, **Sign to Run Locally**, is enough), and macOS may ask once to let Xcode control the computer under **Privacy & Security → Accessibility**.
