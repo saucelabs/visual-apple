@@ -10,6 +10,8 @@ View installation and usage instructions on the [Sauce Docs website](https://doc
 
 In Xcode, choose **File → Add Package Dependencies…**, enter `https://github.com/saucelabs/visual-apple`, and add the `SauceVisual` product to your UI test target.
 
+Alternatively, download `SauceVisual-X.Y.Z.xcframework.zip` from [Releases](https://github.com/saucelabs/visual-apple/releases), unzip it, and add `SauceVisual.xcframework` to your UI test target with **Embed & Sign**.
+
 Set `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` for the test run, then in a UI test:
 
 ```swift

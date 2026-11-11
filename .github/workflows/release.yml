@@ -91,4 +91,5 @@ jobs:
           files: |
             dist/SauceVisual-${{ steps.upgrade.outputs.version }}.xcframework.zip
             dist/SauceVisual-${{ steps.upgrade.outputs.version }}.xcframework.zip.sha256
+            dist/LICENSE
           generate_release_notes: true
