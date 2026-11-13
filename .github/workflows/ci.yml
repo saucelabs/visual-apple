@@ -107,7 +107,8 @@ jobs:
           esac
           SIMULATOR_UDID=$udid Scripts/test.sh source "$FAMILY"
 
-      # DerivedData is never uploaded: xcodebuild stores the environment, including the access key, in it.
+      # Never upload DerivedData or result bundles (.xcresult): xcodebuild records the test-runner environment,
+      # including the access key, in both. GitHub masks secrets in logs, not in artifacts.
       - name: Retain source-test results
         if: always()
         uses: actions/upload-artifact@v6
@@ -118,8 +119,8 @@ jobs:
           path: |
             build/**/*.log
             build/**/results.json
-            build/**/TestResults.xcresult
             !build/**/DerivedData/**
+            !build/**/*.xcresult/**
 
   xcframework:
     needs: package-tests
@@ -219,6 +220,7 @@ jobs:
           esac
           SIMULATOR_UDID=$udid Scripts/test.sh binary "$FAMILY"
 
+      # Never upload DerivedData or result bundles: they contain the access key (see source-tests).
       - name: Retain binary-validation results
         if: always()
         uses: actions/upload-artifact@v6
@@ -229,8 +231,8 @@ jobs:
           path: |
             build/**/*.log
             build/**/results.json
-            build/**/TestResults.xcresult
             !build/**/DerivedData/**
+            !build/**/*.xcresult/**
 
   # Publishes the candidate only once every check has passed: package, all source families, all binary families.
   accept:
