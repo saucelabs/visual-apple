@@ -35,7 +35,7 @@ jobs:
           echo "::error::Run the release from main."
           exit 1
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Tags are needed to refuse a version that was already released.
           fetch-depth: 0
@@ -83,7 +83,7 @@ jobs:
           echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
 
       - name: Github Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           fail_on_unmatched_files: true
           tag_name: ${{ steps.push_to_git.outputs.tag_name }}
