@@ -36,6 +36,7 @@ jobs:
           bash -n Scripts/build-xcframework.sh
           bash -n Scripts/pin-simulators.sh
           bash -n Scripts/check-xcodeproj-sources.sh
+          bash -n Scripts/bump-version.sh
           plutil -lint SauceVisual.xcodeproj/project.pbxproj \
             Tests/Integration/Source.xcodeproj/project.pbxproj \
             Tests/Integration/Binary.xcodeproj/project.pbxproj

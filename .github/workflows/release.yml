@@ -1,0 +1,95 @@
+name: Apple (Release)
+
+# SwiftPM resolves versions from plain `X.Y.Z` tags, so the tag has no SDK prefix.
+on:
+  workflow_dispatch:
+    inputs:
+      releaseType:
+        description: 'Release type - major, minor or patch'
+        required: true
+        type: choice
+        default: 'patch'
+        options:
+          - 'major'
+          - 'minor'
+          - 'patch'
+
+permissions:
+  contents: write
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+concurrency:
+  group: apple-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Release from main only
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run the release from main."
+          exit 1
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # Tags are needed to refuse a version that was already released.
+          fetch-depth: 0
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "sauce-visual-bot"
+          git config --global user.email "visual@saucelabs.com"
+
+      - name: Upgrade version
+        id: upgrade
+        env:
+          RELEASE_TYPE: ${{ github.event.inputs.releaseType }}
+        run: |
+          new_version=$(Scripts/bump-version.sh "$RELEASE_TYPE")
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Run package tests
+        run: xcrun swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
+      - name: Build XCFramework
+        env:
+          VERSION: ${{ steps.upgrade.outputs.version }}
+        run: |
+          set -euo pipefail
+          Scripts/build-xcframework.sh
+          archive="dist/SauceVisual-$VERSION.xcframework.zip"
+          test -f "$archive"
+          # The checksum a `.binaryTarget(url:checksum:)` needs to use this archive.
+          xcrun swift package compute-checksum "$archive" > "$archive.sha256"
+
+      - name: Push new version to Git
+        id: push_to_git
+        env:
+          VERSION: ${{ steps.upgrade.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag_name="$VERSION"
+          git add Configuration/SDK.xcconfig Sources/SauceVisual/API/GraphQLTransport.swift
+          git commit -m "[release] $tag_name"
+          git tag -a "$tag_name" -m "SauceVisual $tag_name"
+          git push origin HEAD:main
+          git push origin "$tag_name"
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+
+      - name: Github Release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          fail_on_unmatched_files: true
+          tag_name: ${{ steps.push_to_git.outputs.tag_name }}
+          name: SauceVisual ${{ steps.push_to_git.outputs.tag_name }}
+          files: |
+            dist/SauceVisual-${{ steps.upgrade.outputs.version }}.xcframework.zip
+            dist/SauceVisual-${{ steps.upgrade.outputs.version }}.xcframework.zip.sha256
+            dist/LICENSE
+          generate_release_notes: true
