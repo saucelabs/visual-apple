@@ -329,39 +329,60 @@ public final class VisualObjCClient: NSObject, Sendable {
     /// Used for every check that doesn't set its own. A copy: changing it has no effect.
     @objc public var baselineOverride: VisualBaselineOverride? { client.baselineOverride.map(VisualBaselineOverride.init) }
 
-    /// `nil` arguments come from `SAUCE_USERNAME`, `SAUCE_ACCESS_KEY`, `SAUCE_REGION`, and `SAUCE_VISUAL_*`.
-    /// `baselineOverride` applies to every check that doesn't set its own.
-    /// - Throws: `SLVErrorCodeInvalidCredentials`, `SLVErrorCodeUnknownRegion`, or `SLVErrorCodeInvalidBuildId`.
-    @objc(initWithUsername:accessKey:region:options:baselineOverride:error:)
-    public init(
-        username: String?, accessKey: String?, region: VisualRegion?, options: VisualBuildConfiguration?,
-        baselineOverride: VisualBaselineOverride?
-    ) throws {
-        let credentials: VisualCredentials?
-        if username == nil && accessKey == nil {
-            credentials = nil
-        } else {
-            credentials = try VisualCredentials(username: username ?? "", accessKey: accessKey ?? "")
-        }
-        client = try VisualClient(
-            credentials: credentials, region: region?.value, options: options?.value ?? VisualBuildOptions(),
-            baselineOverride: baselineOverride?.value
-        )
+    private init(_ client: VisualClient) {
+        self.client = client
         super.init()
     }
 
-    /// Like `initWithUsername:accessKey:region:options:baselineOverride:error:`, without a baseline override.
-    @objc(initWithUsername:accessKey:region:options:error:)
-    public convenience init(
-        username: String?, accessKey: String?, region: VisualRegion?, options: VisualBuildConfiguration?
-    ) throws {
-        try self.init(username: username, accessKey: accessKey, region: region, options: options, baselineOverride: nil)
+    /// Creates the shared build, or joins it, so wrong credentials fail here, before any test step.
+    /// `nil` arguments come from `SAUCE_USERNAME`, `SAUCE_ACCESS_KEY`, `SAUCE_REGION`, and `SAUCE_VISUAL_*`.
+    /// `baselineOverride` applies to every check that doesn't set its own.
+    /// The completion gets the client, or an error such as `SLVErrorCodeInvalidCredentials`,
+    /// `SLVErrorCodeUnknownRegion`, `SLVErrorCodeInvalidBuildId`, or `SLVErrorCodeConflictingConfiguration`.
+    @objc(clientWithUsername:accessKey:region:options:baselineOverride:completion:)
+    public static func client(
+        username: String?, accessKey: String?, region: VisualRegion?, options: VisualBuildConfiguration?,
+        baselineOverride: VisualBaselineOverride?,
+        completion: @escaping @MainActor @Sendable (VisualObjCClient?, NSError?) -> Void
+    ) {
+        // Copied now, so later changes to the Objective-C objects have no effect.
+        let region = region?.value
+        let options = options?.value ?? VisualBuildOptions()
+        let baselineOverride = baselineOverride?.value
+        Task {
+            do {
+                let credentials: VisualCredentials?
+                if username == nil && accessKey == nil {
+                    credentials = nil
+                } else {
+                    credentials = try VisualCredentials(username: username ?? "", accessKey: accessKey ?? "")
+                }
+                let client = try await VisualClient(
+                    credentials: credentials, region: region, options: options, baselineOverride: baselineOverride
+                )
+                await completion(VisualObjCClient(client), nil)
+            } catch {
+                await completion(nil, bridgeToNSError(error))
+            }
+        }
+    }
+
+    /// Like `clientWithUsername:accessKey:region:options:baselineOverride:completion:`, without a baseline override.
+    @objc(clientWithUsername:accessKey:region:options:completion:)
+    public static func client(
+        username: String?, accessKey: String?, region: VisualRegion?, options: VisualBuildConfiguration?,
+        completion: @escaping @MainActor @Sendable (VisualObjCClient?, NSError?) -> Void
+    ) {
+        client(username: username, accessKey: accessKey, region: region, options: options, baselineOverride: nil,
+               completion: completion)
     }
 
     /// Reads credentials and region from the environment.
-    @objc(initWithOptions:error:)
-    public convenience init(options: VisualBuildConfiguration?) throws {
-        try self.init(username: nil, accessKey: nil, region: nil, options: options)
+    @objc(clientWithOptions:completion:)
+    public static func client(
+        options: VisualBuildConfiguration?, completion: @escaping @MainActor @Sendable (VisualObjCClient?, NSError?) -> Void
+    ) {
+        client(username: nil, accessKey: nil, region: nil, options: options, completion: completion)
     }
 
     /// The shared build, created if needed.

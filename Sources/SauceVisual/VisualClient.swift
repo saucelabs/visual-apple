@@ -1,7 +1,7 @@
 import Foundation
 
 /// Takes Sauce Visual snapshots in your UI tests. All clients share one build per test run,
-/// which the SDK creates on the first check.
+/// which the SDK creates with the first client.
 ///
 /// The build belongs to the first client's region, credentials, and build options. Later clients must use
 /// the same ones, and then share the first client's connection. A client with a different configuration
@@ -22,23 +22,45 @@ public actor VisualClient {
     private let store: SharedBuildStore
     private let device: DeviceInfo
 
+    /// Creates the shared build, or joins it, so wrong credentials fail here, before any test step.
     /// Missing values come from `SAUCE_USERNAME`, `SAUCE_ACCESS_KEY`, `SAUCE_REGION`, and `SAUCE_VISUAL_*`.
-    /// - Throws: `VisualError.invalidCredentials`, `.unknownRegion`, `.invalidBuildId`, or `.invalidFinishDelay`.
+    /// - Throws: `VisualError.invalidCredentials`, `.unknownRegion`, `.invalidBuildId`, `.invalidFinishDelay`,
+    ///   `.conflictingConfiguration`, `.buildNotFound`, `VisualAPIError`, or `CancellationError`.
     public init(
         credentials: VisualCredentials? = nil,
         region: SauceRegion? = nil,
         options: VisualBuildOptions = VisualBuildOptions(),
         baselineOverride: BaselineOverride? = nil,
         session: URLSession = .shared
-    ) throws {
-        try self.init(
-            credentials: credentials, region: region, options: options, baselineOverride: baselineOverride,
+    ) async throws {
+        // Usually already done when the SDK loads; this is a fallback. Registered before the build is created,
+        // so the build is still finished when the tests end.
+        TestObservation.register()
+        try await self.init(
+            connecting: credentials, region: region, options: options, baselineOverride: baselineOverride,
             session: session, environment: ProcessInfo.processInfo.environment, store: .shared
         )
-        // Usually already done when the SDK loads; this is a fallback.
-        TestObservation.register()
     }
 
+    /// Like the public initializer, with the environment, store, and uploader passed in for tests.
+    internal init(
+        connecting credentials: VisualCredentials?,
+        region: SauceRegion?,
+        options: VisualBuildOptions,
+        baselineOverride: BaselineOverride? = nil,
+        session: URLSession,
+        environment: [String: String],
+        store: SharedBuildStore,
+        uploader: PresignedUploader = .shared
+    ) async throws {
+        try self.init(
+            credentials: credentials, region: region, options: options, baselineOverride: baselineOverride,
+            session: session, environment: environment, store: store, uploader: uploader
+        )
+        _ = try await build()
+    }
+
+    /// Checks the configuration without any request. Tests use it to create the build later, or never.
     internal init(
         credentials: VisualCredentials?,
         region: SauceRegion?,
@@ -67,7 +89,7 @@ public actor VisualClient {
         self.device = DeviceInfo.current(environment)
     }
 
-    /// The shared build, created if needed. Only useful to read its ID or link before the first check.
+    /// The shared build, for example to read its ID or link before the first check.
     /// Concurrent first calls make one request. A failed attempt is retried by a later call, unless the
     /// service may already have created the build: then a build with a `customId` is looked up, and any
     /// other keeps failing with the same error.

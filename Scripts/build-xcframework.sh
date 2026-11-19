@@ -110,7 +110,7 @@ for index in 0 1 2 3 4; do
   done
   header="$framework/Headers/SauceVisual-Swift.h"
   for symbol in SLVClient SLVRegion SLVBuildOptions SLVBuild SLVSnapshot SLVCheckOptions SLVDiffingMethod SLVBaselineOverride SLVOperatingSystem SLVErrorCode \
-      initWithUsername: accessKey: region: options: baselineOverride: error: initWithOptions: \
+      clientWithUsername: accessKey: region: options: baselineOverride: completion: clientWithOptions: \
       buildWithCompletion: finishWithCompletion: sauceVisualCheckWithName: regionNamed:; do
     grep -Fq -- "$symbol" "$header" || fail "Missing public declaration: $symbol"
   done

@@ -74,25 +74,17 @@ extern void RunObjectiveCExample(SLVBuildOptions *options, void (^completion)(SL
     XCTAssertEqual(options.diffingMethod, SLVDiffingMethodExperimental);
 }
 
-- (void)testClientKeepsBaselineOverride {
+- (void)testBaselineOverrideKeepsFieldsAndNullMatches {
     SLVBaselineOverride *baseline = [[SLVBaselineOverride alloc] init];
     baseline.device = @"iPhone 17";
     baseline.operatingSystem = SLVOperatingSystemIos;
-    SLVClient *client = [[SLVClient alloc] initWithUsername:@"user" accessKey:@"key" region:SLVRegion.staging
-                                                    options:nil baselineOverride:baseline error:nil];
-    XCTAssertEqualObjects(client.baselineOverride.device, @"iPhone 17");
-    XCTAssertEqual(client.baselineOverride.operatingSystem, SLVOperatingSystemIos);
-    XCTAssertNil(client.baselineOverride.name);
-    XCTAssertFalse([client.baselineOverride matchesNullFor:SLVBaselineOverrideFieldName]);
+    XCTAssertEqualObjects(baseline.device, @"iPhone 17");
+    XCTAssertEqual(baseline.operatingSystem, SLVOperatingSystemIos);
+    XCTAssertNil(baseline.name);
+    XCTAssertFalse([baseline matchesNullFor:SLVBaselineOverrideFieldName]);
 
     [baseline matchNullFor:SLVBaselineOverrideFieldSuiteName];
-    SLVClient *withNull = [[SLVClient alloc] initWithUsername:@"user" accessKey:@"key" region:SLVRegion.staging
-                                                      options:nil baselineOverride:baseline error:nil];
-    XCTAssertTrue([withNull.baselineOverride matchesNullFor:SLVBaselineOverrideFieldSuiteName]);
-    XCTAssertNil(withNull.baselineOverride.suiteName);
-    SLVClient *plain = [[SLVClient alloc] initWithUsername:@"user" accessKey:@"key" region:SLVRegion.staging
-                                                   options:nil error:nil];
-    XCTAssertNil(plain.baselineOverride);
+    XCTAssertTrue([baseline matchesNullFor:SLVBaselineOverrideFieldSuiteName]);
 }
 
 - (void)testBuildOptionsKeepFinishDelay {
@@ -105,13 +97,19 @@ extern void RunObjectiveCExample(SLVBuildOptions *options, void (^completion)(SL
     XCTAssertEqualObjects(shared.finishDelay, @120);
     XCTAssertEqualObjects(shared.customId, @"ci-42");
 
-    NSError *error = nil;
+    // A finish delay needs a custom ID. Fails before any request, so no backend is needed.
     SLVBuildOptions *invalid = [[SLVBuildOptions alloc] initWithName:@"Build" project:nil branch:nil defaultBranch:nil
                                                             customId:nil buildId:nil finishDelay:@120 tags:nil];
-    XCTAssertNil([[SLVClient alloc] initWithUsername:@"user" accessKey:@"key" region:SLVRegion.staging
-                                             options:invalid error:&error]);
-    XCTAssertEqualObjects(error.domain, SLVClient.errorDomain);
-    XCTAssertEqual(error.code, SLVErrorCodeInvalidFinishDelay);
+    XCTestExpectation *done = [self expectationWithDescription:@"Client creation"];
+    [SLVClient clientWithUsername:@"user" accessKey:@"key" region:SLVRegion.staging options:invalid
+                       completion:^(SLVClient *client, NSError *error) {
+        XCTAssertTrue(NSThread.isMainThread);
+        XCTAssertNil(client);
+        XCTAssertEqualObjects(error.domain, SLVClient.errorDomain);
+        XCTAssertEqual(error.code, SLVErrorCodeInvalidFinishDelay);
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:10.0];
 }
 
 - (void)testBuildOptionsKeepTags {
@@ -124,17 +122,6 @@ extern void RunObjectiveCExample(SLVBuildOptions *options, void (^completion)(SL
                                                      defaultBranch:nil customId:nil buildId:nil
                                                        finishDelay:nil tags:nil];
     XCTAssertNil(plain.tags);
-}
-
-- (void)testClientKeepsOptions {
-    SLVBuildOptions *options = [[SLVBuildOptions alloc] initWithName:@"Build" project:@"Project" branch:nil
-                                                       defaultBranch:nil customId:nil buildId:nil
-                                                         finishDelay:nil tags:nil];
-    SLVClient *client = [[SLVClient alloc] initWithUsername:@"user" accessKey:@"key"
-                                                               region:SLVRegion.staging options:options error:nil];
-    XCTAssertEqualObjects(client.options.name, @"Build");
-    XCTAssertEqualObjects(client.options.project, @"Project");
-    XCTAssertEqualObjects(client.region, SLVRegion.staging);
 }
 
 @end

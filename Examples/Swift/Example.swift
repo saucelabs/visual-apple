@@ -7,7 +7,7 @@ func runSwiftExample(
         name: "Checkout flow", project: "Example app", branch: "feature-checkout", defaultBranch: "main"
     )
 ) async throws -> VisualSnapshot {
-    let visual = try VisualClient(options: options)
+    let visual = try await VisualClient(options: options)
     let snapshot = try await visual.sauceVisualCheck("Home screen")
     print("Sauce Visual build: \(snapshot.buildId)")
     return snapshot

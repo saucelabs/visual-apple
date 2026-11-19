@@ -15,7 +15,7 @@ Set `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` for the test run, then in a UI test:
 ```swift
 import SauceVisual
 
-let visual = try VisualClient(options: VisualBuildOptions(name: "My build"))
+let visual = try await VisualClient(options: VisualBuildOptions(name: "My build"))
 try await visual.sauceVisualCheck("Home screen")
 ```
 

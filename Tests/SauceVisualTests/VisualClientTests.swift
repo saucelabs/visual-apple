@@ -44,6 +44,50 @@ final class VisualClientTests: XCTestCase, @unchecked Sendable {
         )
     }
 
+    /// Like the public initializer: creates the build before returning the client.
+    private func connectedClient(_ route: StubURLProtocol.Route, store: SharedBuildStore) async throws -> VisualClient {
+        try await VisualClient(
+            connecting: nil, region: nil, options: VisualBuildOptions(name: "Build"),
+            session: StubURLProtocol.session(route), environment: environment, store: store
+        )
+    }
+
+    func testClientCreatesTheBuildBeforeReturning() async throws {
+        let route = StubURLProtocol.Route([created])
+        let client = try await connectedClient(route, store: SharedBuildStore())
+        XCTAssertEqual(operations(route), ["createBuild"])
+        // The client's build is reused, with no second request.
+        let build = try await client.build()
+        XCTAssertEqual(build.id, buildID)
+        XCTAssertEqual(route.requests.count, 1)
+    }
+
+    func testBadCredentialsFailAtInit() async throws {
+        let unauthorized = StubURLProtocol.Reply(status: 401, body: Data("Unauthorized".utf8))
+        let route = StubURLProtocol.Route([unauthorized, created])
+        let store = SharedBuildStore()
+        await XCTAssertThrowsErrorAsync(try await self.connectedClient(route, store: store)) {
+            XCTAssertEqual(($0 as? VisualAPIError)?.code, .invalidCredentials)
+        }
+        XCTAssertEqual(operations(route), ["createBuild"])
+        // The service refused the build, so the next client asks again instead of reusing the failure.
+        _ = try await connectedClient(route, store: store)
+        XCTAssertEqual(operations(route), ["createBuild", "createBuild"])
+    }
+
+    func testMissingCredentialsFailAtInitWithoutRequest() async {
+        let route = StubURLProtocol.Route([])
+        await XCTAssertThrowsErrorAsync(
+            try await VisualClient(
+                connecting: nil, region: nil, options: VisualBuildOptions(),
+                session: StubURLProtocol.session(route), environment: [:], store: SharedBuildStore()
+            )
+        ) {
+            XCTAssertEqual($0 as? VisualError, .invalidCredentials)
+        }
+        XCTAssertTrue(route.requests.isEmpty)
+    }
+
     func testConfigurationComesFromEnvironment() throws {
         let client = try client(StubURLProtocol.Route([]), store: SharedBuildStore(), options: VisualBuildOptions(),
                                 environment: environment.merging(["SAUCE_VISUAL_PROJECT": "Env project"]) { $1 })

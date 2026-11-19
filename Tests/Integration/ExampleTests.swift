@@ -44,7 +44,7 @@ final class LiveBuildConsumerTests: XCTestCase, @unchecked Sendable {
         app.launch()
         let list = app.descendants(matching: .any).matching(identifier: "fullPageList").firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: 10), "List did not appear")
-        let visual = try VisualClient(options: liveBuildOptions)
+        let visual = try await VisualClient(options: liveBuildOptions)
         let options = VisualCheckOptions(fullPage: FullPageScreenshot(scrollElement: list, scrollLimit: 5))
         #if os(tvOS)
         do {
@@ -65,7 +65,7 @@ final class LiveBuildConsumerTests: XCTestCase, @unchecked Sendable {
     func testHomeScreenWithDom() async throws {
         let app = XCUIApplication()
         app.launch()
-        let visual = try VisualClient(options: liveBuildOptions)
+        let visual = try await VisualClient(options: liveBuildOptions)
         let snapshot = try await visual.sauceVisualCheck("Home screen (DOM)", options: VisualCheckOptions(captureDom: true))
         XCTAssertNotNil(UUID(uuidString: snapshot.id))
         app.terminate()
@@ -152,7 +152,7 @@ final class FullPageEdgeCaseTests: XCTestCase, @unchecked Sendable {
         defer { app.terminate() }
         let list = app.descendants(matching: .any).matching(identifier: "fullPageList").firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: 10), "List did not appear")
-        let visual = try VisualClient(options: liveBuildOptions)
+        let visual = try await VisualClient(options: liveBuildOptions)
         let checkOptions = options?(app, list) ?? VisualCheckOptions(fullPage: FullPageScreenshot(scrollElement: list))
         try await visual.sauceVisualCheck(name, options: checkOptions)
     }
