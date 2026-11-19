@@ -241,9 +241,25 @@ final class CheckOptionsTests: XCTestCase, @unchecked Sendable {
     func testDefaultRequestSendsNoOptionalFields() async throws {
         let input = try await snapshotInput(for: SnapshotRequest())
         XCTAssertEqual(input["diffingMethod"] as? String, "BALANCED")
-        for key in ["ignoreRegions", "diffingOptions", "diffingMethodSensitivity", "diffingMethodTolerance", "baselineOverride"] {
+        for key in ["ignoreRegions", "diffingOptions", "diffingMethodSensitivity", "diffingMethodTolerance", "baselineOverride",
+                    "appId"] {
             XCTAssertNil(input[key], "\(key) is left to the server")
         }
+    }
+
+    func testAppIdIsSent() async throws {
+        let input = try await snapshotInput(for: SnapshotRequest(appId: "com.example.app"))
+        XCTAssertEqual(input["appId"] as? String, "com.example.app")
+    }
+
+    func testAppIdIsReadOnlyWhenOffered() {
+        final class App: NSObject {
+            @objc let bundleID: String
+            init(_ bundleID: String) { self.bundleID = bundleID }
+        }
+        XCTAssertEqual(AppUnderTest.bundleId(of: App("com.example.app")), "com.example.app")
+        XCTAssertNil(AppUnderTest.bundleId(of: App("")), "An empty ID is not sent")
+        XCTAssertNil(AppUnderTest.bundleId(of: NSObject()), "No crash when the property is gone")
     }
 
     // MARK: - Helpers
