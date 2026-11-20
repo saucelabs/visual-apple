@@ -111,4 +111,30 @@ final class DomCaptureTests: XCTestCase, @unchecked Sendable {
         XCTAssertFalse(VisualCheckOptions().captureDom)
         XCTAssertNil(SnapshotRequest().dom)
     }
+
+    func testAccessibleIsWrittenOnlyWhenRead() {
+        let root = DomNode(type: "XCUIElementTypeOther", accessible: false, frame: screen, children: [
+            DomNode(type: "XCUIElementTypeStaticText", label: "$ 29.99", accessible: true, frame: CGRect(x: 0, y: 0, width: 50, height: 20)),
+            DomNode(type: "XCUIElementTypeImage", frame: CGRect(x: 0, y: 20, width: 50, height: 20))
+        ])
+        let lines = xml(root).split(separator: "\n")
+
+        XCTAssertTrue(lines[2].contains("selected=\"false\" accessible=\"false\" x="))
+        XCTAssertTrue(lines[3].contains("selected=\"false\" accessible=\"true\" x="))
+        XCTAssertFalse(lines[4].contains("accessible="), "Not read, so left out")
+    }
+
+    func testAccessibleFollowsWebDriverAgentRules() {
+        func accessible(_ type: XCUIElement.ElementType, _ isElement: Bool, inside: Bool = false, firstChild: Bool = false) -> Bool {
+            DomCapture.isAccessible(type, isElement: isElement, insideAccessibilityElement: inside) { firstChild }
+        }
+        XCTAssertTrue(accessible(.staticText, true))
+        XCTAssertFalse(accessible(.other, false))
+        XCTAssertFalse(accessible(.staticText, true, inside: true), "Inside an accessibility element, like a button's label")
+        XCTAssertTrue(accessible(.cell, false, firstChild: true), "A cell whose content view is the element")
+        XCTAssertFalse(accessible(.cell, false))
+        XCTAssertTrue(accessible(.textField, false), "The element is inside the text field")
+        XCTAssertTrue(accessible(.secureTextField, false))
+        XCTAssertFalse(accessible(.textField, false, inside: true))
+    }
 }
