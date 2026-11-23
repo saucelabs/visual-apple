@@ -178,18 +178,32 @@ if [[ ${SKIP_SAFARI_TESTS:-} == 1 && ( $family == iphone || $family == ipad ) ]]
   test_args+=(-skip-testing:ConsumerTests-iOS/SauceDemoTests)
 fi
 
-# pipefail keeps xcodebuild's exit status through tee.
 printf 'Distribution: %s; destination: %s\n' "$distribution" "$destination" | tee "$run/destination.log"
-xcodebuild "${build_args[@]}" test \
-  -configuration Debug \
-  -destination "$destination" \
-  -destination-timeout 180 \
-  -parallel-testing-enabled NO \
-  -test-timeouts-enabled YES \
-  -default-test-execution-time-allowance 120 \
-  -maximum-test-execution-time-allowance 120 \
-  -resultBundlePath "$run/TestResults.xcresult" \
-  ${test_args[@]+"${test_args[@]}"} 2>&1 | tee "$run/tests.log"
+test_command=(xcodebuild "${build_args[@]}" test
+  -configuration Debug
+  -destination "$destination"
+  -destination-timeout 180
+  -parallel-testing-enabled NO
+  -test-timeouts-enabled YES
+  -default-test-execution-time-allowance 120
+  -maximum-test-execution-time-allowance 120
+  -resultBundlePath "$run/TestResults.xcresult"
+  ${test_args[@]+"${test_args[@]}"}
+)
+
+if [[ ${GITHUB_ACTIONS:-} == true ]]; then
+  # Xcode and system networking diagnostics can print full signed upload URLs.
+  # Keep the raw output on the runner and report only the command status and test counts in public CI.
+  "${test_command[@]}" > "$run/tests.log" 2>&1 || {
+    status=$?
+    printf '::error::xcodebuild exited with status %s. Run Scripts/test.sh %s %s locally for details.\n' \
+      "$status" "$distribution" "$family" >&2
+    exit "$status"
+  }
+else
+  # pipefail keeps xcodebuild's exit status through tee.
+  "${test_command[@]}" 2>&1 | tee "$run/tests.log"
+fi
 
 # Validate the structured result.
 xcrun xcresulttool get test-results summary \
