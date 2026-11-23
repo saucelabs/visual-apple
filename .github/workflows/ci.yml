@@ -5,6 +5,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -24,7 +26,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@v5.1.0
         with:
           persist-credentials: false
 
@@ -58,7 +60,7 @@ jobs:
 
       - name: Retain package-test logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: visual-apple-package-results
           if-no-files-found: warn
@@ -75,7 +77,7 @@ jobs:
       matrix:
         family: [iphone, ipad, tvos, macos]
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@v5.1.0
         with:
           persist-credentials: false
 
@@ -111,7 +113,7 @@ jobs:
       # including the access key, in both. GitHub masks secrets in logs, not in artifacts.
       - name: Retain source-test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: visual-apple-source-results-${{ matrix.family }}
           if-no-files-found: warn
@@ -127,7 +129,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@v5.1.0
         with:
           persist-credentials: false
 
@@ -136,7 +138,7 @@ jobs:
 
       # Artifact paths are relative to the repository root, not the working directory.
       - name: Upload candidate for independent binary validation
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: visual-apple-candidate
           if-no-files-found: error
@@ -148,7 +150,7 @@ jobs:
 
       - name: Retain XCFramework build logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: visual-apple-xcframework-results
           if-no-files-found: warn
@@ -167,11 +169,11 @@ jobs:
       matrix:
         family: [iphone, ipad, tvos, macos]
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@v5.1.0
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@v7.0.0
         with:
           name: visual-apple-candidate
           path: downloaded
@@ -223,7 +225,7 @@ jobs:
       # Never upload DerivedData or result bundles: they contain the access key (see source-tests).
       - name: Retain binary-validation results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: visual-apple-binary-results-${{ matrix.family }}
           if-no-files-found: warn
@@ -240,13 +242,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@v7.0.0
         with:
           name: visual-apple-candidate
           path: candidate
 
       - name: Upload accepted integration artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: visual-apple-integration
           if-no-files-found: error
@@ -255,3 +257,58 @@ jobs:
           path: |
             candidate/*.xcframework.zip
             candidate/LICENSE
+
+  attach-release-assets:
+    if: github.event_name == 'release'
+    needs: accept
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7.0.0
+        with:
+          name: visual-apple-integration
+          path: accepted
+
+      - name: Attach the tested XCFramework and license
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          archives=(accepted/SauceVisual-*.xcframework.zip)
+          [[ ${#archives[@]} -eq 1 && -s ${archives[0]} && -s accepted/LICENSE ]] || {
+            echo '::error::Expected one validated SauceVisual XCFramework ZIP and its license.'
+            exit 1
+          }
+
+          # A release event checks out the tagged commit. Ensure it still matches the tested run.
+          tag_ref=$(jq -rn --arg ref "refs/tags/$RELEASE_TAG" '$ref | @uri')
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag_ref" --jq .sha)
+          [[ $tag_sha == "$GITHUB_SHA" ]] || {
+            echo '::error::The release tag no longer points to the tested commit.'
+            exit 1
+          }
+
+          # Retain assets already uploaded by the same run, and reject any conflicting bytes.
+          existing=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets")
+          pending=()
+          for file in "${archives[0]}" accepted/LICENSE; do
+            name=${file##*/}
+            asset=$(jq -r --arg name "$name" '.[] | select(.name == $name) | [.state, .digest] | @tsv' <<< "$existing")
+            if [[ -z $asset ]]; then
+              pending+=("$file")
+              continue
+            fi
+            digest=$(sha256sum "$file")
+            [[ $asset == $'uploaded\tsha256:'"${digest%% *}" ]] || {
+              echo "::error::Release asset $name already exists with different contents or an incomplete upload."
+              exit 1
+            }
+          done
+          if (( ${#pending[@]} )); then
+            gh release upload --repo "$GITHUB_REPOSITORY" -- "$RELEASE_TAG" "${pending[@]}"
+          fi
