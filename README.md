@@ -19,34 +19,6 @@ let visual = try VisualClient(options: VisualBuildOptions(name: "My build"))
 try await visual.sauceVisualCheck("Home screen")
 ```
 
-## Building
-
-Sauce Visual XCUITest SDK uses [Swift Package Manager](https://www.swift.org/documentation/package-manager/) and Xcode 26.
-
-```sh
-swift build
-```
-
-To build `SauceVisual.xcframework`:
-
-```sh
-Scripts/build-xcframework.sh
-```
-
-## Running the tests
-
-To run the unit tests:
-
-```sh
-swift test
-```
-
-The integration tests run on a simulator and create real builds. Make sure that `SAUCE_USERNAME` and `SAUCE_ACCESS_KEY` environment variables are in place before running them:
-
-```sh
-Scripts/test.sh source iphone    # or ipad, tvos, macos
-```
-
 ## License
 
 [Apache-2.0](LICENSE).
