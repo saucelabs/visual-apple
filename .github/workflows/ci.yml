@@ -49,23 +49,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build
-          xcrun swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
-            2>&1 | tee build/swift-debug.log
-          xcrun swift test -c release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
-            2>&1 | tee build/swift-release.log
+          xcrun swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          xcrun swift test -c release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
           xcrun swift test -Xswiftc -swift-version -Xswiftc 6 \
-            -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
-            2>&1 | tee build/swift6.log
-
-      - name: Retain package-test logs
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: visual-apple-package-results
-          if-no-files-found: warn
-          retention-days: 7
-          path: build/*.log
+            -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
   source-tests:
     name: source-tests (${{ matrix.family }})
@@ -88,7 +75,8 @@ jobs:
 
       - name: Test source-SPM consumer
         shell: bash
-        # Only the consumer tests get credentials: their live tests create real Sauce Visual builds.
+        # Keep raw Xcode logs, DerivedData and .xcresult bundles out of artifacts.
+        # They can contain credentials, and GitHub's job log masking does not apply to uploaded files.
         env:
           FAMILY: ${{ matrix.family }}
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
@@ -101,6 +89,9 @@ jobs:
             echo "::error::The live consumer tests need the SAUCE_USERNAME and SAUCE_ACCESS_KEY secrets, which pull requests from forks don't get."
             exit 1
           }
+          # Register the derived HTTP Basic credential as well as the GitHub-managed secrets.
+          basic_auth=$(printf '%s:%s' "$SAUCE_USERNAME" "$SAUCE_ACCESS_KEY" | base64 | tr -d '\n')
+          printf '::add-mask::%s\n' "$basic_auth"
           case $FAMILY in
             iphone) udid=${SIMULATOR_UDID_IPHONE:-} ;;
             ipad) udid=${SIMULATOR_UDID_IPAD:-} ;;
@@ -108,21 +99,6 @@ jobs:
             *) udid= ;;
           esac
           SIMULATOR_UDID=$udid Scripts/test.sh source "$FAMILY"
-
-      # Never upload DerivedData or result bundles (.xcresult): xcodebuild records the test-runner environment,
-      # including the access key, in both. GitHub masks secrets in logs, not in artifacts.
-      - name: Retain source-test results
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: visual-apple-source-results-${{ matrix.family }}
-          if-no-files-found: warn
-          retention-days: 7
-          path: |
-            build/**/*.log
-            build/**/results.json
-            !build/**/DerivedData/**
-            !build/**/*.xcresult/**
 
   xcframework:
     needs: package-tests
@@ -147,17 +123,6 @@ jobs:
           path: |
             dist/*.xcframework.zip
             dist/LICENSE
-
-      - name: Retain XCFramework build logs
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: visual-apple-xcframework-results
-          if-no-files-found: warn
-          retention-days: 7
-          path: |
-            build/**/*.log
-            !build/**/DerivedData*/**
 
   validate-binary:
     name: validate-binary (${{ matrix.family }})
@@ -201,7 +166,7 @@ jobs:
 
       - name: Test independent binary consumer
         shell: bash
-        # Only the consumer tests get credentials: their live tests create real Sauce Visual builds.
+        # Keep raw Xcode output out of artifacts as in source-tests.
         env:
           FAMILY: ${{ matrix.family }}
           SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
@@ -214,6 +179,9 @@ jobs:
             echo "::error::The live consumer tests need the SAUCE_USERNAME and SAUCE_ACCESS_KEY secrets, which pull requests from forks don't get."
             exit 1
           }
+          # Register the derived HTTP Basic credential as well as the GitHub-managed secrets.
+          basic_auth=$(printf '%s:%s' "$SAUCE_USERNAME" "$SAUCE_ACCESS_KEY" | base64 | tr -d '\n')
+          printf '::add-mask::%s\n' "$basic_auth"
           case $FAMILY in
             iphone) udid=${SIMULATOR_UDID_IPHONE:-} ;;
             ipad) udid=${SIMULATOR_UDID_IPAD:-} ;;
@@ -221,20 +189,6 @@ jobs:
             *) udid= ;;
           esac
           SIMULATOR_UDID=$udid Scripts/test.sh binary "$FAMILY"
-
-      # Never upload DerivedData or result bundles: they contain the access key (see source-tests).
-      - name: Retain binary-validation results
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: visual-apple-binary-results-${{ matrix.family }}
-          if-no-files-found: warn
-          retention-days: 7
-          path: |
-            build/**/*.log
-            build/**/results.json
-            !build/**/DerivedData/**
-            !build/**/*.xcresult/**
 
   # Publishes the candidate only once every check has passed: package, all source families, all binary families.
   accept:
