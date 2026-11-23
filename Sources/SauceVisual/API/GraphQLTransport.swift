@@ -1,7 +1,7 @@
 import Foundation
 
 /// Sent in the `User-Agent` header. Keep in sync with `MARKETING_VERSION` in `Configuration/SDK.xcconfig`.
-internal let sauceVisualVersion = "0.1.0"
+internal let sauceVisualVersion = "0.1.1"
 
 /// A small GraphQL client for the Sauce Visual API. Safe to share.
 internal struct GraphQLTransport: Sendable {
