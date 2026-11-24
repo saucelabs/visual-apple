@@ -18,6 +18,8 @@ internal struct DomNode: Hashable, Sendable {
     var value: String?
     var enabled = true
     var selected = false
+    /// `nil` when it can't be read.
+    var accessible: Bool?
     /// In screen points.
     var frame: CGRect = .zero
     var children: [DomNode] = []
@@ -29,22 +31,52 @@ internal enum DomCapture {
     static func capture(
         _ element: XCUIElement, origin: CGPoint, screen: CGRect, devicePixelRatio: Double
     ) throws -> DomSnapshot {
-        let root = node(from: try element.snapshot())
+        let snapshot = try element.snapshot()
+        let reader = AccessibilityReader().flatMap { $0.isElement(snapshot) == nil ? nil : $0 }
+        let root = node(from: snapshot, reader: reader, insideAccessibilityElement: false)
         return DomSnapshot(xml: document(root, origin: origin, screen: screen), devicePixelRatio: devicePixelRatio)
     }
 
     @MainActor
-    static func node(from snapshot: XCUIElementSnapshot) -> DomNode {
-        DomNode(
-            type: typeName(snapshot.elementType),
+    private static func node(
+        from snapshot: XCUIElementSnapshot, reader: AccessibilityReader?, insideAccessibilityElement: Bool
+    ) -> DomNode {
+        let type = snapshot.elementType
+        var isElement = false
+        var accessible: Bool?
+        if let reader {
+            isElement = reader.isElement(snapshot) ?? false
+            accessible = isAccessible(type, isElement: isElement, insideAccessibilityElement: insideAccessibilityElement) {
+                snapshot.children.first.flatMap(reader.isElement) ?? false
+            }
+        }
+        let childrenInside = insideAccessibilityElement || (type != .table && isElement)
+        return DomNode(
+            type: typeName(type),
             identifier: snapshot.identifier,
             label: snapshot.label,
             value: text(snapshot.value) ?? snapshot.placeholderValue.flatMap { $0.isEmpty ? nil : $0 },
             enabled: snapshot.isEnabled,
             selected: snapshot.isSelected,
+            accessible: accessible,
             frame: snapshot.frame,
-            children: snapshot.children.map(node(from:))
+            children: snapshot.children.map {
+                node(from: $0, reader: reader, insideAccessibilityElement: childrenInside)
+            }
         )
+    }
+
+    /// Same rules as Appium's WebDriverAgent.
+    static func isAccessible(
+        _ type: XCUIElement.ElementType, isElement: Bool, insideAccessibilityElement: Bool,
+        firstChildIsElement: () -> Bool
+    ) -> Bool {
+        guard !insideAccessibilityElement else { return false }
+        switch type {
+        case .cell: return isElement || firstChildIsElement()
+        case .textField, .secureTextField: return true
+        default: return isElement
+        }
     }
 
     /// The page source for `root`, with frames moved so `origin` becomes `(0, 0)`.
@@ -65,6 +97,7 @@ internal enum DomCapture {
         attributes.append(("enabled", String(node.enabled)))
         attributes.append(("visible", String(isVisible(node.frame, on: screen))))
         attributes.append(("selected", String(node.selected)))
+        if let accessible = node.accessible { attributes.append(("accessible", String(accessible))) }
         let frame = node.frame
         if let x = wholeNumber(frame.minX - origin.x), let y = wholeNumber(frame.minY - origin.y),
            let width = wholeNumber(frame.width), let height = wholeNumber(frame.height) {
@@ -151,4 +184,44 @@ internal enum DomCapture {
         "DockItem", "Ruler", "RulerMarker", "Grid", "LevelIndicator", "Cell", "LayoutArea", "LayoutItem",
         "Handle", "Stepper", "Tab", "TouchBar", "StatusItem"
     ]
+}
+
+/// Reads the accessibility element flag through XCTest's private API, like WebDriverAgent.
+@MainActor
+internal struct AccessibilityReader {
+    private typealias Attributes = @convention(c) (
+        AnyObject, Selector, AnyObject, NSArray, AutoreleasingUnsafeMutablePointer<NSError?>?
+    ) -> NSDictionary?
+
+    private let client: NSObject
+    private let selector: Selector
+    private let attributes: Attributes
+    private let attributeName: NSString
+
+    init?() {
+        #if os(iOS)
+        let device = XCUIDevice.shared as NSObject
+        let selector = NSSelectorFromString("attributesForElement:attributes:error:")
+        guard device.responds(to: NSSelectorFromString("accessibilityInterface")),
+              let client = device.value(forKey: "accessibilityInterface") as? NSObject,
+              client.responds(to: selector),
+              let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "XC_kAXXCAttributeIsElement")
+        else { return nil }
+        self.client = client
+        self.selector = selector
+        attributes = unsafeBitCast(client.method(for: selector), to: Attributes.self)
+        attributeName = symbol.load(as: Unmanaged<NSString>.self).takeUnretainedValue()
+        #else
+        return nil
+        #endif
+    }
+
+    func isElement(_ snapshot: XCUIElementSnapshot) -> Bool? {
+        guard let object = snapshot as? NSObject, object.responds(to: NSSelectorFromString("accessibilityElement")),
+              let element = object.value(forKey: "accessibilityElement") as AnyObject?
+        else { return nil }
+        var error: NSError?
+        let result = attributes(client, selector, element, [attributeName] as NSArray, &error)
+        return (result?[attributeName] as? NSNumber)?.boolValue
+    }
 }
