@@ -25,6 +25,9 @@ internal enum SnapshotCapture {
         // Screenshot first, so it shows the screen as it was when the check was called.
         let screenshot = Screenshot.capture()
         var request = try options.resolve(running: CurrentTest.shared.identity, screenshot: screenshot)
+        #if os(iOS)
+        request.appId = AppUnderTest.bundleId
+        #endif
         if options.captureDom {
             let element = options.clipElement ?? options.fullPageElement
             request.dom = dom(clipElement: element, clip: request.clip, screenshot: screenshot)
@@ -69,6 +72,20 @@ internal enum SnapshotCapture {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw VisualError.invalidSnapshotName }
         return trimmed
+    }
+}
+
+internal enum AppUnderTest {
+    @MainActor
+    static var bundleId: String? {
+        bundleId(of: XCUIApplication())
+    }
+
+    static func bundleId(of object: NSObject) -> String? {
+        guard object.responds(to: NSSelectorFromString("bundleID")),
+              let value = object.value(forKey: "bundleID") as? String, !value.isEmpty
+        else { return nil }
+        return value
     }
 }
 

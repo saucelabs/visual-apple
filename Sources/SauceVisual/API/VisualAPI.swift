@@ -174,7 +174,8 @@ internal struct VisualAPI: Sendable {
             diffingMethodTolerance: request.diffingMethodTolerance.map(GraphQL.DiffingMethodToleranceIn.init),
             baselineOverride: request.baselineOverride.flatMap { $0.isEmpty ? nil : GraphQL.BaselineOverrideIn($0) },
             // Scales the tree's point frames to the screenshot's pixels.
-            devicePixelRatio: dom?.devicePixelRatio
+            devicePixelRatio: dom?.devicePixelRatio,
+            appId: request.appId
         )
         let result = try await transport.execute(
             Self.createSnapshotMutation, variables: GraphQL.Input(input: input), as: GraphQL.SnapshotResult.self
@@ -266,6 +267,7 @@ internal struct VisualAPI: Sendable {
             let diffingMethodTolerance: DiffingMethodToleranceIn?
             let baselineOverride: BaselineOverrideIn?
             let devicePixelRatio: Double?
+            let appId: String?
         }
 
         /// Fields left `nil` are omitted, so the snapshot's own value is used for them.

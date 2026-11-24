@@ -277,6 +277,7 @@ internal struct SnapshotRequest: Hashable, Sendable {
     var baselineOverride: BaselineOverride?
     /// Set when `captureDom` is on and the tree could be read.
     var dom: DomSnapshot?
+    var appId: String?
     /// The screenshots to stitch below the first one, for a full-page check.
     var fullPage: [FullPageCapture.Frame]?
 }
